@@ -550,6 +550,83 @@ def test_allows_done_from_close(repo):
     assert code == 0
 
 
+# ---- Rule D (autonomy: auto): the human's declarations are fixed -------
+
+def rewrite_session(repo, old, new):
+    bdd = repo / ".bdd" / "session.yml"
+    body = {"tool_input": {"file_path": str(bdd), "old_string": old,
+                           "new_string": new}, "cwd": str(repo)}
+    proc = subprocess.run(
+        [sys.executable, str(GUARD), "edit"], input=json.dumps(body),
+        capture_output=True, text=True)
+    return proc.returncode, proc.stderr
+
+
+SCOPED = {"net": "\n  kind: existing\n  status: green",
+          "scope": "\n  in:\n    - src/pricing/*\n  out:\n    - src/tax/*"}
+
+
+def test_auto_blocks_agent_widening_the_declared_scope(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="auto", **SCOPED)
+    code, err = rewrite_session(repo, "    - src/pricing/*",
+                                "    - src/pricing/*\n    - src/tax/*")
+    assert code == 2
+    assert "scope" in err
+
+
+def test_auto_blocks_agent_changing_the_mode(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="auto", **SCOPED)
+    code, err = rewrite_session(repo, "mode: SAFE", "mode: FULL_REFACTOR")
+    assert code == 2
+    assert "mode" in err
+
+
+def test_auto_blocks_agent_redeclaring_the_net_kind(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="auto",
+               **{"net": "\n  kind: characterisation\n  status: green"})
+    code, err = rewrite_session(repo, "kind: characterisation",
+                                "kind: existing")
+    assert code == 2
+    assert "net" in err
+
+
+def test_blocks_agent_switching_a_supervised_slice_to_auto(repo):
+    open_slice(repo, "x", autonomy="supervised")
+    code, err = rewrite_session(repo, "autonomy: supervised",
+                                "autonomy: auto")
+    assert code == 2
+    assert "autonomy" in err
+
+
+def test_allows_agent_handing_an_auto_slice_back_to_supervised(repo):
+    open_slice(repo, "x", autonomy="auto")
+    code, _ = rewrite_session(repo, "autonomy: auto",
+                              "autonomy: supervised")
+    assert code == 0
+
+
+def test_auto_allows_ordinary_bookkeeping_edits(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="auto", cycle=0, **SCOPED)
+    code, _ = rewrite_session(repo, "cycle: 0", "cycle: 1")
+    assert code == 0
+
+
+def test_auto_blocks_done_without_a_clean_slice_review(repo):
+    open_slice(repo, "x", phase="close", autonomy="auto",
+               review="\n  scope: cycle-3\n  blocking: 0")
+    code, err = edit_session(repo, "done")
+    assert code == 2
+    assert "slice" in err
+
+
+def test_auto_allows_done_with_a_clean_slice_review(repo):
+    open_slice(repo, "x", phase="close", autonomy="auto")
+    code, _ = rewrite_session(
+        repo, "phase: close",
+        "phase: done\nreview:\n  scope: slice\n  blocking: 0")
+    assert code == 0
+
+
 # ---- Rule D: Bash can't dodge the phase-transition check --------------
 
 def test_blocks_bash_redirect_write_to_session_yml(repo):
