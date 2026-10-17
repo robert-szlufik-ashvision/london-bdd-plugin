@@ -29,7 +29,11 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      path (see bash_targets_session_yml). A human editing the file
      directly, outside Claude Code entirely, always bypasses every rule
      here — that's expected: this hook governs the agent's own tool
-     calls, not the developer's own editor.
+     calls, not the developer's own editor. The developer's own
+     declarations are guarded the same way: only they promote a slice to
+     `autonomy: auto`, and under auto the mode, scope and net kind are
+     fixed and `done` needs a clean slice review (see
+     human_field_violation).
 
 Note on the marker file: `git checkout <base_branch>` removes
 `.bdd/session.yml` from the working tree (it's tracked only on the tmp
@@ -79,6 +83,14 @@ def find_session(start):
 
 
 def parse_session(path):
+    try:
+        text = open(path, encoding="utf-8").read()
+    except OSError:
+        text = ""
+    return parse_session_text(text)
+
+
+def parse_session_text(text):
     """Minimal YAML subset parser — avoids a PyYAML dependency."""
     s = {"slice": None, "mode": None, "branch": None, "base_branch": None,
          "current_failing_test": None, "scope_in": [], "scope_out": [],
@@ -87,10 +99,6 @@ def parse_session(path):
          "collaborators": [], "cycle": 0, "autonomy": "supervised",
          "failing_test_file": None, "failing_test_name": None,
          "review_scope": None, "review_blocking": None}
-    try:
-        text = open(path, encoding="utf-8").read()
-    except OSError:
-        return s
     m = re.search(r"^slice:\s*(\S+)", text, re.M)
     if m: s["slice"] = m.group(1)
     m = re.search(r"^mode:\s*(\S+)", text, re.M)
@@ -184,7 +192,47 @@ def extract_new_phase(tool_input):
     return m.group(1) if m else None
 
 
-def validate_phase_transition(s, new_phase):
+def proposed_session_text(tool_input, current):
+    """The whole session.yml as it would read after this Write / Edit /
+    MultiEdit — so a change to any field is judged on the result, however
+    the edit was sliced."""
+    if "content" in tool_input:
+        return tool_input["content"]
+    edits = tool_input.get("edits") or [tool_input]
+    text = current
+    for e in edits:
+        old, new = e.get("old_string"), e.get("new_string")
+        if old is None or new is None:
+            continue
+        text = (text.replace(old, new) if e.get("replace_all")
+                else text.replace(old, new, 1))
+    return text
+
+
+HUMAN_FIELDS = [("mode", "mode"), ("scope_in", "scope"),
+                ("scope_out", "scope"), ("net_kind", "net kind")]
+
+
+def human_field_violation(s, new):
+    """The human's declarations at slice start stay the human's. Nobody's
+    agent promotes a slice to auto on its own; under auto, the mode, the
+    scope and the net kind are fixed — widening any of them is exactly
+    the 'while we're here' a supervising human used to catch. Handing a
+    slice back to supervised is always allowed: it's how auto escalates."""
+    if new["autonomy"] == "auto" and s["autonomy"] != "auto":
+        return ("autonomy: only the developer switches a slice to auto — "
+                "set it when the slice is opened, or edit the file by hand")
+    if s["autonomy"] != "auto":
+        return None
+    for key, label in HUMAN_FIELDS:
+        if new[key] != s[key]:
+            return (f"{label} is the developer's declaration and is fixed "
+                    "under autonomy: auto — hand the slice back "
+                    "(autonomy: supervised) to change it, or log to /debt")
+    return None
+
+
+def validate_phase_transition(s, new_phase, new=None):
     """Rule D: mechanizes session-schema.md's 'phase transitions are
     forward-only ... commands refuse to run out of order' — without this,
     that line is just prose the agent is trusted to self-enforce, and
@@ -235,6 +283,12 @@ def validate_phase_transition(s, new_phase):
     if new_phase == "done" and old_phase != "close":
         return ("Rule D: cannot enter phase 'done' except from 'close' — "
                 "run /review to close the outer loop first.")
+
+    if new_phase == "done" and s["autonomy"] == "auto":
+        if not new or new["review_scope"] != "slice" or new["review_blocking"] != 0:
+            return ("Rule D (autonomy: auto): cannot enter phase 'done' "
+                    "without a clean slice review — record `review: {scope: "
+                    "slice, blocking: 0}` from /review's reviewer pass.")
 
     return None
 
@@ -531,11 +585,20 @@ def main():
     # writable for legitimate transitions, but the *value* written must
     # be an earned one.
     if r.replace(os.sep, "/") == ".bdd/session.yml":
+        try:
+            current = open(session_path, encoding="utf-8").read()
+        except OSError:
+            current = ""
+        new = parse_session_text(proposed_session_text(tool_input, current))
         new_phase = extract_new_phase(tool_input)
         if new_phase and new_phase != s["phase"]:
-            err = validate_phase_transition(s, new_phase)
+            err = validate_phase_transition(s, new_phase, new)
             if err:
                 block(err)
+        if s["phase"] != "done":
+            err = human_field_violation(s, new)
+            if err:
+                block(f"Rule D: {err}.")
 
     if is_always_allowed(r):
         sys.exit(0)  # tests, docs, .bdd, registers are always writable
