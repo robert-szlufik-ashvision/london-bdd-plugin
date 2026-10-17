@@ -98,7 +98,7 @@ def parse_session_text(text):
          "net_kind": None, "acceptance_status": None,
          "collaborators": [], "cycle": 0, "autonomy": "supervised",
          "failing_test_file": None, "failing_test_name": None,
-         "review_scope": None, "review_blocking": None}
+         "review_scope": None, "review_blocking": None, "handback": None}
     m = re.search(r"^slice:\s*(\S+)", text, re.M)
     if m: s["slice"] = m.group(1)
     m = re.search(r"^mode:\s*(\S+)", text, re.M)
@@ -113,6 +113,8 @@ def parse_session_text(text):
     if m: s["cycle"] = int(m.group(1))
     m = re.search(r"^autonomy:\s*(\S+)", text, re.M)
     if m: s["autonomy"] = m.group(1)
+    m = re.search(r"^handback:\s*(\S.*?)\s*$", text, re.M)
+    if m: s["handback"] = m.group(1).strip("'\"")
     m = re.search(r"^current_failing_test:\s*\n((?:[ \t]+.*\n?)*)", text, re.M)
     if m and re.search(r"\bfile:\s*\S", m.group(1)):
         s["current_failing_test"] = True
