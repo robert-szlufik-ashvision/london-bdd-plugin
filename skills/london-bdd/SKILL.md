@@ -63,6 +63,49 @@ missing or untrusted, and only over that gap.
 Mode is declared at slice start and recorded in `.bdd/session.yml`.
 Switching modes mid-slice requires an explicit checkpoint with the user.
 
+## Autonomy — who sits in which loop
+
+Declared by the developer when the slice is opened, recorded as
+`autonomy:` in `.bdd/session.yml`. Absent means `supervised`.
+
+```
+                    supervised (default)        auto
+outer loop open     developer + agent           developer + agent
+  /scenario, /refactor-scope — behaviour, ubiquitous language,
+  scope, mode, net: ALWAYS the developer's, in both modes
+decompose → inner ×N → review
+  role names        developer confirms          agent, in the agreed language
+  next behaviour    developer confirms          agent, driven by the AT/map
+  refactor proposals developer accepts          agent applies; block = must fix
+  slice gate        developer accepts           agent applies; clean review = gate
+landing             /commit-merge — always developer-invoked (manual or --auto)
+```
+
+**In auto, the hooks replace the human's eyes**, not the agent's
+judgment: a recorded red must point at a real test (Rule A); the
+implementer can only write production code (Rule A); every cycle commit
+carries a clean review of exactly that cycle and a test change, and no
+commit deletes a test (Rule C); mode, scope and net kind are frozen, and
+`done` needs a clean slice review (Rule D).
+
+**Hand back, don't improvise.** Auto never widens what the developer
+declared and never decides what only the developer can. On any of these,
+stop, set `autonomy: supervised` and `handback: "<one line why>"` in
+session.yml, commit it, and report:
+
+- the outer net goes red on a verification run (regression vs intended
+  change is the developer's call);
+- the implementer is still red after one re-dispatch with the failure;
+- a reviewer `block` finding survives two fix-and-re-review rounds;
+- the work needs a file outside the scope, a mode change, or a new term
+  the slice's ubiquitous language doesn't have;
+- a test would have to be deleted or weakened to proceed.
+
+Everything else — which behaviour next, role names within the agreed
+language, which `should`/`consider` refactors to take — the agent decides
+and records (in the commit message or the decompose map) so the developer
+can audit the slice at landing.
+
 ## Core principles (Freeman & Pryce)
 
 - Design emerges **outside-in** — start with behaviour, not data.
@@ -137,8 +180,10 @@ Minimum implementation                          →  implementer agent (Haiku)
 Design critique                                 →  reviewer agent (Sonnet, read-only)
 ```
 
-The human writes/approves every test name and role name. The implementer
-gets one failing test and the interfaces it references — nothing else.
+Supervised: the human writes/approves every test name and role name.
+Auto: the agent names them within the language agreed at slice open
+(see Autonomy). Either way the implementer gets one failing test and the
+interfaces it references — nothing else.
 
 ## Branching discipline
 
@@ -162,20 +207,26 @@ commands check first anyway — commands are polite, hooks are absolute.
   (composition-root wiring); or SAFE mode with a **green net**
   (refactoring moves are green-to-green; the net is the license). The
   net's kind — declared existing suite or characterisation — is recorded
-  in session.yml by the human; the hook checks status, not kind.
+  in session.yml by the human; the hook checks status, not kind. The
+  implementer agent writes production code only — never tests or `.bdd/`.
+  Under auto the recorded failing test must exist (file and name).
 - **B.** In SAFE/FULL_REFACTOR, no edit outside the declared scope.
   "While we're here" → extend scope explicitly or `/debt`.
 - **C.** Agent commits only on `feature/*-tmp`. Merges onto
   `feature/*-main` are human by default, or agent-run via
   `/commit-merge --auto` with fresh per-run authorization. Rebases are
-  always human.
+  always human. Under auto: no commit deletes a test file, and a cycle
+  commit needs `review: {scope: cycle-<n>, blocking: 0}` plus a test
+  change (SAFE excepted).
 - **D.** Phase transitions in `.bdd/session.yml` are forward-only and
   earned, not self-reported: entering `inner` requires the outer net to
   exist (AT red / net green) and, for GREENFIELD, a
   non-empty collaborator queue; entering `close` requires every
   collaborator `done`; entering `done` requires coming from `close`. The
   guard hook validates the target phase on every edit to session.yml, so
-  a step can't be skipped just by writing the field.
+  a step can't be skipped just by writing the field. Only the developer
+  promotes a slice to `autonomy: auto`; under auto, mode/scope/net kind
+  are frozen and `done` needs `review: {scope: slice, blocking: 0}`.
 
 ## Operating rules
 
@@ -191,6 +242,9 @@ commands check first anyway — commands are polite, hooks are absolute.
    the repo.
 7. Deviations requested by the user are honoured but noted, with why the
    step matters.
+8. Under `autonomy: auto`, "confirm with the user" inside decompose →
+   inner → review means *decide, record why, continue* — except the
+   hand-back list above, which always stops.
 
 ## Common failure modes
 

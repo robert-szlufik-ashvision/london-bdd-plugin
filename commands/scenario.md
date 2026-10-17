@@ -29,6 +29,10 @@ Work through these WITH the user, one at a time:
 4. **One meaningful sad path** to cover alongside the happy path.
 5. **Clean architecture boundary** — which layer does the AT enter through?
    (Application layer preferred; UI entry only for smoke tests.)
+6. **Autonomy** — ask: "Run decompose → inner → review unattended
+   (`auto`), or confirm each role, test and refactor with you
+   (`supervised`)?" In auto the language agreed in steps 1–2 is all the
+   agent may name things in, so make sure it's complete.
 
 ## Phase 1 — Scenario + failing AT
 
@@ -44,10 +48,11 @@ Work through these WITH the user, one at a time:
    absent, not setup error). Run it and show the output.
 4. Create `.bdd/session.yml`:
    `mode: GREENFIELD`, `phase: decompose`, `acceptance_test.status: red`,
-   branch fields set, empty collaborator list.
+   `autonomy:` as agreed, branch fields set, empty collaborator list.
 5. Commit on feature/<slice>-tmp: `test: failing acceptance test — <slice>`
-6. Announce: `🔴 AT: <behaviour>` and tell the user the next command is
-   `/decompose`.
+6. Announce: `🔴 AT: <behaviour>`. Supervised: tell the user the next
+   command is `/decompose`. Auto: this is the developer's last stop until
+   the slice is closed or handed back — run `/decompose` now.
 
 ## Rules
 

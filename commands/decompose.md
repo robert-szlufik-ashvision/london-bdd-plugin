@@ -18,8 +18,12 @@ Read the `london-bdd` skill and `references/collaborator-discovery.md`.
    object need to ask for or tell?* Name each discovered role by
    **capability, not implementation** (`OrderRepository`, not
    `SqliteOrderStore`), in the project's ubiquitous language.
-2. **Confirm every role name with the user** before recording it. Names
-   are design decisions — they are the user's to make.
+2. **Role names are design decisions.**
+   - Supervised: confirm every role name with the user before recording it.
+   - Auto: name it yourself, strictly in the ubiquitous language agreed at
+     `/scenario` (and `docs/glossary.md` if present). Record a one-line
+     rationale per role in the map. A role that needs a term the agreed
+     language doesn't have → hand back (skill: Autonomy).
 3. Sketch the minimal interface per role: only the methods actually
    called, starting with one.
 4. Sanity checks (from the skill): >3–4 collaborators on one class →
@@ -29,8 +33,8 @@ Read the `london-bdd` skill and `references/collaborator-discovery.md`.
    Set `phase: inner`.
 6. Commit: `docs: collaborator map — <slice>` (the map goes in
    `.bdd/scope-<slice>.md` or the session file — no production code).
-7. Tell the user: next command is `/inner`, which will work the queue one
-   collaborator at a time.
+7. Supervised: tell the user the next command is `/inner`, which works
+   the queue one collaborator at a time. Auto: run `/inner` now.
 
 ## Rules
 

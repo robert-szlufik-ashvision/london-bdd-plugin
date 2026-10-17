@@ -25,6 +25,25 @@ Every command tells you which one is next when it finishes. Lost track
 mid-slice? Run `/london-bdd:status` — it reads `.bdd/session.yml` and
 prints the next command, no need to remember the diagram above.
 
+## Autonomy: supervised or auto
+
+Chosen per slice when you open it (`/scenario` or `/refactor-scope`) and
+recorded as `autonomy:` in `.bdd/session.yml`.
+
+- **supervised** (default): you confirm role names, each test's behaviour
+  and every refactor, as before.
+- **auto**: you own the outer loop — behaviour, ubiquitous language,
+  scope, mode, net — and the agent runs decompose → inner ×N → review
+  unattended, stopping at `phase: done` for you to land it with
+  `/commit-merge`.
+
+Auto doesn't relax the discipline; the hooks take over the checks you
+used to do by eye (see Rule A–D below). When the agent hits something
+only you can decide — the net goes red, the implementer can't get green,
+a blocking review finding won't go away, work outside the declared scope
+— it hands the slice back: `autonomy: supervised` plus a `handback:`
+reason, which `/status` shows you first.
+
 ## Command reference
 
 All commands live under the `/london-bdd:` prefix.
@@ -61,17 +80,21 @@ All commands live under the `/london-bdd:` prefix.
 - **A.** Production edits need a license: a recorded failing test, OR
   phase `close` (wiring), OR SAFE mode with a green net — the declared
   existing suite or a characterisation suite; the hook checks status,
-  not kind.
+  not kind. The implementer agent writes production code only. Auto:
+  the recorded failing test must actually exist.
 - **B.** SAFE/FULL_REFACTOR: no edit outside the declared scope —
   "while we're here" must be explicit or logged to debt.
 - **C.** Agent commits only on `feature/*-tmp`. Merges onto
   `feature/*-main` are human-only by default, or agent-run via
   `/commit-merge --auto` with fresh per-run authorization; rebases and
-  pushes are always human.
+  pushes are always human. Auto: no commit deletes a test; each cycle
+  commit needs a clean recorded review of that cycle plus a test change.
 - **D.** Phase transitions in `.bdd/session.yml` are forward-only and
   earned: entering `inner`/`close`/`done` requires the actual
   preconditions (outer net exists, collaborator queue drained, etc.) —
-  a step can't be skipped just by writing the field.
+  a step can't be skipped just by writing the field. Only you promote a
+  slice to auto; under auto, mode/scope/net kind are frozen and `done`
+  needs a clean slice-level review.
 
 The guard is silent when no `.bdd/session.yml` slice is active.
 
@@ -79,7 +102,8 @@ The guard is silent when no `.bdd/session.yml` slice is active.
 
 | Work | Who |
 |---|---|
-| Scenario, decomposition, unit tests, review decisions | Main session + you |
+| Scenario, scope, net, autonomy | Main session + you, always |
+| Decomposition, unit tests, review decisions | Main session + you (supervised) or main session alone (auto) |
 | Minimum implementation | `implementer` agent (Haiku, can't touch tests) |
 | Design critique | `reviewer` agent (Sonnet, read-only) |
 

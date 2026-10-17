@@ -16,6 +16,10 @@ slice: place-order                  # kebab-case slice name
 mode: GREENFIELD                    # GREENFIELD | SAFE | FULL_REFACTOR
 phase: inner                        # scope | characterise | scenario |
                                     # decompose | inner | close | done
+autonomy: auto                      # supervised | auto — set by the
+                                    # developer when the slice is opened
+handback: null                      # auto only: why the agent stopped
+                                    # and handed the slice back
 branch: feature/place-order-tmp     # expected working branch
 base_branch: feature/place-order-main
 
@@ -59,6 +63,11 @@ current_failing_test:
   name: OrderRepository.SavesAndReturnsId
   # non-null => production edits permitted (hook rule A)
 
+# autonomy: auto — the reviewer's verdict on the work about to be committed
+review:
+  scope: cycle-3                    # cycle-<n> (per /inner) | slice (/review)
+  blocking: 0                       # open [block] findings; must be 0 to commit
+
 cycle: 3                            # increments per completed t+i+r cycle
 last_commit: "cycle 3: OrderService delegates to OrderRepository"
 ```
@@ -71,6 +80,18 @@ session.yml can carry state across that checkout. See `/commit-merge` and
 `scripts/guard.py` for the marker's exact format and lifecycle.
 
 ## Field rules
+
+- `autonomy` is the developer's call, made once when the slice is opened
+  (`/scenario` or `/refactor-scope`). Absent means `supervised`. The agent
+  can never promote a slice to `auto` — hook-enforced — but can always
+  hand it back: set `autonomy: supervised` plus a one-line `handback:`
+  reason. `/status` then names the developer as next. The developer
+  clears `handback` (and may re-set `auto`) to resume.
+- Under `autonomy: auto`, `mode`, `scope.in`/`scope.out` and `net.kind`
+  are frozen for the agent (hook Rule D). `review` gates every cycle
+  commit and the move to `done` (hook Rules C and D): its `scope` must
+  name exactly the cycle being committed (`cycle-<n>`, the already
+  incremented `cycle`) or `slice`, with `blocking: 0`.
 
 - `current_failing_test` is set by `/unit` (or `/acceptance` for the outer
   red) and cleared by the commit step at the end of the cycle. The

@@ -35,8 +35,10 @@ Read the `london-bdd` skill. Language tooling in references.
 1. Check session.yml: `phase: inner`, a collaborator with
    `status: pending|red` at the head of the queue, on feature/<slice>-tmp,
    `current_failing_test` empty (one red at a time — never two).
-2. Confirm with the user which behaviour of the collaborator this test
-   drives.
+2. Pick the behaviour of the collaborator this test drives — supervised:
+   confirm it with the user; auto: choose it yourself, the next behaviour
+   the acceptance test (or net) and the decompose map demand, and name
+   it in the commit message.
 3. Write the test. Run it; verify it fails for the right reason.
 4. Set `current_failing_test` in session.yml (this unlocks production
    edits for the hook), collaborator `status: red`.

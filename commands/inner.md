@@ -1,6 +1,6 @@
 ---
 name: inner
-description: Run one full inner-loop cycle for the next collaborator — failing unit test (with the user), minimum implementation (implementer agent, Haiku), review and refactor (reviewer agent, Sonnet), one commit on feature/<slice>-tmp. Repeat until the collaborator queue is empty.
+description: Run one full inner-loop cycle for the next collaborator — failing unit test (with the user, or unattended under autonomy auto), minimum implementation (implementer agent, Haiku), review and refactor (reviewer agent, Sonnet), one commit on feature/<slice>-tmp. Repeat until the collaborator queue is empty.
 ---
 
 # /inner — One Cycle: Red → Green → Refactor → Commit
@@ -22,7 +22,11 @@ The orchestrator. Read the `london-bdd` skill first.
 
 ## The cycle
 
-### 1 — RED (you + user, main session)
+Under `autonomy: auto` every "with the user" below is yours to decide
+and record — except the hand-back conditions in the skill's Autonomy
+section, which always stop the loop.
+
+### 1 — RED (main session; + user when supervised)
 Follow `/unit` for the head-of-queue collaborator. Ends with
 `current_failing_test` set and `🔴 UT` announced.
 
@@ -35,14 +39,24 @@ more:
 The agent writes the minimum production code, runs the tests, reports.
 - Tests green → announce `🟢 UT: <class> — <behaviour>`.
 - Still red after the agent's turns → bring the failure back to the main
-  session; you and the user diagnose. Do not loop the agent blindly.
+  session. Supervised: you and the user diagnose. Auto: re-dispatch once
+  with the failure output; still red → hand back. Never loop the agent
+  blindly, never touch the test to make it pass.
 
 ### 3 — REVIEW + REFACTOR (reviewer agent — Sonnet)
 Dispatch `london-bdd:reviewer` with the diff of this cycle. It critiques
 (sentence heuristic, naming vs ubiquitous language, duplication, mock
 smells, boundary violations, over-implementation beyond the test) and
-**proposes** refactors. Present the proposals to the user; apply only the
-accepted ones. All tests must stay green. Announce `🔵 Refactor`.
+**proposes** refactors, ending with `blocking: <n>`.
+- Supervised: present the proposals to the user; apply only the accepted
+  ones.
+- Auto: apply every `block` and `should`; take `consider` where it's a
+  named Fowler move inside this cycle's files. If anything was `block`,
+  re-dispatch the reviewer on the new diff — at most two rounds, then
+  hand back. Record the final verdict in session.yml:
+  `review: {scope: cycle-<n>, blocking: 0}` where `<n>` is the cycle
+  this commit completes. The guard refuses the commit without it.
+All tests must stay green. Announce `🔵 Refactor`.
 
 ### 4 — COMMIT (once per cycle, feature/<slice>-tmp only)
 - Verify branch again (belt and braces — the hook also checks).
@@ -52,8 +66,10 @@ accepted ones. All tests must stay green. Announce `🔵 Refactor`.
   `cycle <n>: <collaborator> — <behaviour>`
 
 ### 5 — NEXT
-Queue non-empty → tell the user `/inner` again for the next collaborator.
-Queue empty → set `phase: close`; tell the user next command is `/review`
+Under auto, don't stop to report between cycles — run the next command
+straight away (`/status` confirms it).
+Queue non-empty → `/inner` again for the next collaborator.
+Queue empty → set `phase: close`; next command is `/review`
 for the slice gate, then close the outer loop (wire the composition root,
 run the AT / characterisation verification).
 
