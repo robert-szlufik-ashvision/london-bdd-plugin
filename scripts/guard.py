@@ -20,6 +20,9 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      `/commit-merge --auto` has dropped a fresh, untracked
      `.bdd/.merge-authorized` marker naming this exact tmp/base branch
      pair (see find_merge_marker). Rebases are never allowed for the agent.
+     Under `autonomy: auto` a commit may not delete test files, and a
+     cycle commit must carry a clean recorded review for that cycle plus
+     a test change (see auto_commit_violation).
   D. Phase transitions in session.yml are forward-only and earned (see
      validate_phase_transition) — checked on Edit/Write/MultiEdit, and on
      Bash only for the narrow case of a redirect/tee write at that exact
@@ -82,7 +85,8 @@ def parse_session(path):
          "phase": None, "char_status": None, "net_status": None,
          "net_kind": None, "acceptance_status": None,
          "collaborators": [], "cycle": 0, "autonomy": "supervised",
-         "failing_test_file": None, "failing_test_name": None}
+         "failing_test_file": None, "failing_test_name": None,
+         "review_scope": None, "review_blocking": None}
     try:
         text = open(path, encoding="utf-8").read()
     except OSError:
@@ -128,6 +132,12 @@ def parse_session(path):
                 r"-\s*role:\s*(\S+)\s*\n\s*status:\s*(\S+)", m.group(1)):
             s["collaborators"].append(
                 {"role": role_m.group(1), "status": role_m.group(2)})
+    m = re.search(r"^review:\s*\n((?:[ \t]+.*\n?)*)", text, re.M)
+    if m:
+        sc = re.search(r"\bscope:\s*(\S+)", m.group(1))
+        if sc: s["review_scope"] = sc.group(1)
+        bl = re.search(r"\bblocking:\s*(\d+)", m.group(1))
+        if bl: s["review_blocking"] = int(bl.group(1))
     block = re.search(r"^scope:\s*\n((?:[ \t]+.*\n?)*)", text, re.M)
     if block:
         cur = None
@@ -282,6 +292,78 @@ def sibling_tmp_branch(cwd, br):
         return None
 
 
+def committed_cycle(cwd):
+    """The cycle recorded in HEAD's session.yml — what the working tree's
+    cycle is compared against to tell a cycle commit from any other."""
+    try:
+        text = subprocess.run(
+            ["git", "show", "HEAD:.bdd/session.yml"], cwd=cwd,
+            capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return 0
+    m = re.search(r"^cycle:\s*(\d+)", text, re.M)
+    return int(m.group(1)) if m else 0
+
+
+def pending_changes(cwd):
+    """(changed, deleted) paths vs HEAD, staged or not, untracked included
+    — what a `git commit -a` (or a prior `git add`) is about to record."""
+    try:
+        out = subprocess.run(
+            ["git", "status", "--porcelain", "-uall"], cwd=cwd,
+            capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return [], []
+    changed, deleted = [], []
+    for line in out.splitlines():
+        xy, path = line[:2], line[3:]
+        if " -> " in path:
+            old, path = path.split(" -> ", 1)
+            deleted.append(old.strip('"'))
+        path = path.strip('"')
+        (deleted if "D" in xy else changed).append(path)
+    return changed, deleted
+
+
+TEST_DIR_SEGMENTS = {"tests", "test", "spec", "__tests__"}
+
+
+def is_test_path(relpath):
+    parts = relpath.replace(os.sep, "/").split("/")
+    if any(seg in TEST_DIR_SEGMENTS for seg in parts[:-1]):
+        return True
+    return bool(re.search(
+        r"(^test_|_test\.|\.test\.|\.spec\.|Test\.\w+$|_spec\.)", parts[-1]))
+
+
+def auto_commit_violation(s, root):
+    """autonomy: auto — Rule C's commit gate replaces the human who used to
+    watch each cycle. Any commit: no test file deleted (shrinking the net
+    is a human decision). A cycle commit (cycle advanced past HEAD's):
+    the reviewer's verdict for exactly this cycle is recorded with zero
+    blocking findings, and — outside SAFE, whose moves are green-to-green
+    under the net — a test was added or changed. Returns an error or None."""
+    changed, deleted = pending_changes(root)
+    gone = [p for p in deleted if is_test_path(p)]
+    if gone:
+        return (f"deleting test file(s) {', '.join(gone)} — removing tests "
+                "is a human decision; log it to /debt instead")
+    if s["cycle"] <= committed_cycle(root):
+        return None
+    want = f"cycle-{s['cycle']}"
+    if s["review_scope"] != want or s["review_blocking"] is None:
+        return (f"cycle {s['cycle']} has no recorded review — dispatch the "
+                f"reviewer and record `review: {{scope: {want}, blocking: "
+                "<n>}` in session.yml")
+    if s["review_blocking"] > 0:
+        return (f"the review of {want} has {s['review_blocking']} open "
+                "blocking finding(s) — resolve them, re-review, then commit")
+    if s["mode"] != "SAFE" and not any(is_test_path(p) for p in changed):
+        return (f"cycle {s['cycle']} commits no test change — every "
+                "cycle is driven by its own failing test")
+    return None
+
+
 def bash_targets_session_yml(cmd):
     """True if cmd redirects/tees output at .bdd/session.yml — the way to
     dodge Rule D's phase-transition check, which only inspects Edit/Write/
@@ -403,6 +485,11 @@ def main():
                     block("Rule C: agent commits are allowed only on a "
                           "feature/<slice>-tmp branch, or the merge-landing "
                           "commit authorized via /commit-merge --auto.")
+                if s and s["autonomy"] == "auto":
+                    err = auto_commit_violation(s, root)
+                    if err:
+                        block(f"Rule C (autonomy: auto): commit blocked — "
+                              f"{err}.")
             if re.search(r"\bgit\s+rebase\b", cmd):
                 block("Rule C: rebases are the developer's manual action, "
                       "never the agent's.")
