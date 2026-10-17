@@ -38,13 +38,16 @@ def write_marker(repo, branch, base_branch):
         f"branch: {branch}\nbase_branch: {base_branch}\n")
 
 
-def guard(repo, kind, command=None, file_path=None):
+def guard(repo, kind, command=None, file_path=None, agent_type=None):
     tool_input = {}
     if command is not None:
         tool_input["command"] = command
     if file_path is not None:
         tool_input["file_path"] = file_path
-    payload = json.dumps({"tool_input": tool_input, "cwd": str(repo)})
+    body = {"tool_input": tool_input, "cwd": str(repo)}
+    if agent_type is not None:
+        body["agent_type"] = agent_type
+    payload = json.dumps(body)
     proc = subprocess.run(
         [sys.executable, str(GUARD), kind], input=payload,
         capture_output=True, text=True)
@@ -132,6 +135,34 @@ def test_net_block_overrides_legacy_characterisation_block(repo):
     code, err = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
     assert code == 2
     assert "Rule A" in err
+
+
+# ---- Rule A: the implementer agent never touches tests or .bdd/ -------
+
+FAILING = "\n  file: tests/unit/x_test.py\n  name: t"
+
+
+def test_blocks_implementer_agent_editing_a_test_file(repo):
+    open_slice(repo, "x", current_failing_test=FAILING)
+    code, err = guard(repo, "edit", agent_type="london-bdd:implementer",
+                      file_path=str(repo / "tests" / "unit" / "x_test.py"))
+    assert code == 2
+    assert "implementer" in err
+
+
+def test_blocks_implementer_agent_editing_session_yml(repo):
+    open_slice(repo, "x", current_failing_test=FAILING)
+    code, err = guard(repo, "edit", agent_type="london-bdd:implementer",
+                      file_path=str(repo / ".bdd" / "session.yml"))
+    assert code == 2
+    assert "implementer" in err
+
+
+def test_allows_implementer_agent_production_edit_under_red(repo):
+    open_slice(repo, "x", current_failing_test=FAILING)
+    code, _ = guard(repo, "edit", agent_type="london-bdd:implementer",
+                    file_path=str(repo / "src" / "order.py"))
+    assert code == 0
 
 
 # ---- Rule B: scope gate (SAFE/FULL_REFACTOR) --------------------------

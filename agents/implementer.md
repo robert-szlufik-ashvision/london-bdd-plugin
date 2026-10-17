@@ -17,6 +17,8 @@ Rules — absolute:
 1. You NEVER edit test files. If the test seems wrong, stop and report —
    do not "fix" it.
 2. You NEVER edit `.bdd/session.yml` or anything under `.bdd/`.
+   (Rules 1–2 are hook-enforced: the guard blocks any test, `.bdd/` or
+   docs write that comes from this agent.)
 3. You NEVER edit files outside what the failing test and its referenced
    interfaces require.
 4. No speculation: no extra methods, no parameters "for later", no error
