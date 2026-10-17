@@ -65,17 +65,31 @@ Switching modes mid-slice requires an explicit checkpoint with the user.
 
 ## Autonomy — opt-in, not default
 
-`/decompose` and `/inner` normally pause for the user at every role name
-and every cycle. Setting `autonomy: autonomous` in `.bdd/session.yml`
-(offered by `/scenario` and `/refactor-scope`, default `assisted`) lets
-the agent drive the whole collaborator queue unattended: name roles,
-pick each behaviour, run red → green → review → commit, cycle after
-cycle, without ending its turn between them. The outer red
-(`/scenario`/`/acceptance`), `/review`, and `/commit-merge` are **never**
-autonomous — landing the slice always stays a separate, human-paced step,
-whether run manually or via `/commit-merge --auto`'s own fresh
-per-invocation authorization. See `references/session-schema.md` for the
-field and its escalation triggers.
+`/decompose`, `/inner` and `/review` normally pause for the user at every
+role name, every cycle and every slice-level proposal. Setting
+`autonomy: autonomous` in `.bdd/session.yml` (offered by `/scenario` and
+`/refactor-scope`, default `assisted`) lets the agent drive them
+unattended: name roles, pick each behaviour, run red → green → review →
+commit cycle after cycle, then close the slice — without ending its turn
+between them. The outer loop's opening (`/scenario`, `/refactor-scope`,
+`/characterise`: behaviour, ubiquitous language, scope, mode, net) and
+landing (`/commit-merge`) are **never** autonomous.
+
+**The hooks replace the human's eyes**, since nobody watches each cycle:
+
+- the implementer agent can write production code only (Rule A, both
+  modes);
+- a recorded failing test must exist — file on disk, name in the file
+  (Rule A);
+- a cycle commit needs the reviewer's verdict on exactly that cycle with
+  zero `block` findings, plus a test change (SAFE excepted); no commit
+  deletes a test file (Rule C);
+- mode, scope and net kind are frozen, only the developer turns autonomy
+  on, and `done` needs a clean slice review (Rule D).
+
+An escalation trigger (`commands/inner.md`) hands the slice back:
+`autonomy: assisted` plus a `handback:` reason, which `/status` shows the
+developer first. See `references/session-schema.md`.
 
 ## Core principles (Freeman & Pryce)
 
@@ -152,8 +166,8 @@ Design critique                                 →  reviewer agent (Sonnet, rea
 ```
 
 The human writes/approves every test name and role name — unless
-`autonomy: autonomous` is set, in which case the main session may do
-both unattended. The implementer gets one failing test and the
+`autonomy: autonomous` is set, in which case the main session does both
+unattended, strictly in the ubiquitous language agreed at slice start. The implementer gets one failing test and the
 interfaces it references — nothing else, in either mode.
 
 ## Branching discipline
@@ -178,20 +192,26 @@ commands check first anyway — commands are polite, hooks are absolute.
   (composition-root wiring); or SAFE mode with a **green net**
   (refactoring moves are green-to-green; the net is the license). The
   net's kind — declared existing suite or characterisation — is recorded
-  in session.yml by the human; the hook checks status, not kind.
+  in session.yml by the human; the hook checks status, not kind. The
+  implementer agent writes production code only — never tests or `.bdd/`.
+  Autonomous: the recorded failing test must exist (file and name).
 - **B.** In SAFE/FULL_REFACTOR, no edit outside the declared scope.
   "While we're here" → extend scope explicitly or `/debt`.
 - **C.** Agent commits only on `feature/*-tmp`. Merges onto
   `feature/*-main` are human by default, or agent-run via
   `/commit-merge --auto` with fresh per-run authorization. Rebases are
-  always human.
+  always human. Autonomous: no commit deletes a test file, and a cycle
+  commit needs `review: {scope: cycle-<n>, blocking: 0}` plus a test
+  change (SAFE excepted).
 - **D.** Phase transitions in `.bdd/session.yml` are forward-only and
   earned, not self-reported: entering `inner` requires the outer net to
   exist (AT red / net green) and, for GREENFIELD, a
   non-empty collaborator queue; entering `close` requires every
   collaborator `done`; entering `done` requires coming from `close`. The
   guard hook validates the target phase on every edit to session.yml, so
-  a step can't be skipped just by writing the field.
+  a step can't be skipped just by writing the field. Only the developer
+  sets `autonomy: autonomous`; under it, mode/scope/net kind are frozen
+  and `done` needs `review: {scope: slice, blocking: 0}`.
 
 ## Operating rules
 
@@ -207,10 +227,9 @@ commands check first anyway — commands are polite, hooks are absolute.
    the repo.
 7. Deviations requested by the user are honoured but noted, with why the
    step matters.
-8. Autonomy never overrides an escalation trigger: a `block`-severity
-   reviewer finding, an implementer that stays red after honest attempts,
-   or a hook rejection (Rules A–D) all stop the loop and hand back to the
-   human, even in `autonomous` mode.
+8. Autonomy never overrides an escalation trigger (`commands/inner.md`):
+   they all stop the loop and hand back to the human, even in
+   `autonomous` mode.
 
 ## Common failure modes
 

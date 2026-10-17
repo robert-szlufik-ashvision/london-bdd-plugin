@@ -46,14 +46,17 @@ Work through these WITH the user, one at a time:
    (pause for you at each role and each cycle — default), or autonomous
    (I drive the collaborator queue unattended, stopping only on a
    blocking review finding, a stalled implementer, or a hook rejection)?"
-   Default to `assisted` on no answer. This never applies to this command,
-   to `/review`, or to `/commit-merge` — those stay human-paced either way.
+   Default to `assisted` on no answer. This never applies to this command
+   or to `/commit-merge` — those stay human-paced either way. Autonomous
+   names everything in the language agreed in Phase 0, so make sure it's
+   complete; under `autonomous`, `/review` runs unattended too.
 5. Create `.bdd/session.yml`:
    `mode: GREENFIELD`, `phase: decompose`, `acceptance_test.status: red`,
    `autonomy` from step 4, branch fields set, empty collaborator list.
 6. Commit on feature/<slice>-tmp: `test: failing acceptance test — <slice>`
-7. Announce: `🔴 AT: <behaviour>` and tell the user the next command is
-   `/decompose`.
+7. Announce: `🔴 AT: <behaviour>`. `assisted`: tell the user the next
+   command is `/decompose`. `autonomous`: this is the developer's last
+   stop until the slice is closed or handed back — run `/decompose` now.
 
 ## Rules
 

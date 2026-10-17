@@ -47,8 +47,10 @@ skill and `references/scope-template.md`.
    (pause for you at each role and each cycle — default), or autonomous
    (unattended, stopping only on a blocking review finding, a stalled
    implementer, or a hook rejection)?" Default to `assisted` on no
-   answer. `/characterise`, `/review`, and `/commit-merge` stay
-   human-paced either way.
+   answer. `/characterise` and `/commit-merge` stay human-paced either
+   way. Under `autonomous` the scope, mode and net kind are frozen for the
+   agent (hook-enforced) — anything outside them hands back, so declare
+   them completely now.
 6. Create branches (`feature/<slice>-main`, `feature/<slice>-tmp`), check
    out feature/<slice>-tmp.
 7. Write `.bdd/session.yml` with `mode`, the scope block, branch fields,

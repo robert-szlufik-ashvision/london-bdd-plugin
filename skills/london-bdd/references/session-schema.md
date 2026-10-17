@@ -17,6 +17,7 @@ mode: GREENFIELD                    # GREENFIELD | SAFE | FULL_REFACTOR
 phase: inner                        # scope | characterise | scenario |
                                     # decompose | inner | close | done
 autonomy: assisted                  # assisted (default) | autonomous
+handback: null                      # autonomous only: why the run stopped
 branch: feature/place-order-tmp     # expected working branch
 base_branch: feature/place-order-main
 
@@ -60,6 +61,11 @@ current_failing_test:
   name: OrderRepository.SavesAndReturnsId
   # non-null => production edits permitted (hook rule A)
 
+# autonomous — the reviewer's verdict on the work about to be committed
+review:
+  scope: cycle-3                    # cycle-<n> (per /inner) | slice (/review)
+  blocking: 0                       # open [block] findings; must be 0 to commit
+
 cycle: 3                            # increments per completed t+i+r cycle
 last_commit: "cycle 3: OrderService delegates to OrderRepository"
 ```
@@ -77,17 +83,29 @@ session.yml can carry state across that checkout. See `/commit-merge` and
   each step. `assisted` (the default — assumed when the field is absent,
   so existing session files behave exactly as before) keeps every
   checkpoint described in those commands. `autonomous` lets the agent
-  drive role naming and cycle selection unattended. It is set once, at
-  slice start (`/scenario` or `/refactor-scope`), never defaulted to, and
-  never silently upgraded mid-slice — switching requires the same explicit
-  checkpoint as a mode switch. It governs `/decompose` and `/inner` only:
-  `/scenario`, `/acceptance`, `/refactor-scope`, `/review`, and
-  `/commit-merge` are always human-paced regardless of this field (note
-  `/commit-merge --auto` is a separate, per-invocation authorization —
-  `autonomy: autonomous` does not imply it). Three things escalate to the
-  human even in `autonomous` mode: a `reviewer` finding of severity
-  `block`, an implementer that doesn't reach green within its turns, and
-  any hook rejection (Rules A–D) — see `commands/inner.md`.
+  drive role naming, cycle selection and the slice-level `/review`
+  unattended. It is set once, at slice start (`/scenario` or
+  `/refactor-scope`), never defaulted to, and never upgraded mid-slice by
+  the agent — the guard blocks any agent edit that turns `assisted` into
+  `autonomous`; only the developer makes that switch. It governs
+  `/decompose`, `/inner` and `/review`: `/scenario`, `/acceptance`,
+  `/refactor-scope`, `/characterise` and `/commit-merge` are always
+  human-paced regardless of this field (note `/commit-merge --auto` is a
+  separate, per-invocation authorization — `autonomy: autonomous` does
+  not imply it). The escalation triggers in `commands/inner.md` stop an
+  autonomous run and hand back to the human.
+- **Handing back** is the one autonomy change the agent may make: set
+  `autonomy: assisted` plus a one-line `handback:` reason, commit, and
+  stop. `/status` then names the developer as next, with the reason. The
+  developer clears `handback` (and may re-set `autonomous`) to resume.
+- Under `autonomous`, the developer's declarations are frozen for the
+  agent (hook Rule D): `mode`, `scope.in`/`scope.out`, `net.kind`.
+- `review` is how an autonomous run proves each step was reviewed, since
+  no human watched it (hook Rules C and D). A commit that advances
+  `cycle` needs `review.scope: cycle-<n>` naming that (already
+  incremented) cycle, with `blocking: 0`; entering `done` needs
+  `review.scope: slice`, `blocking: 0`. `blocking` is the count from the
+  reviewer agent's final `blocking: <n>` line.
 - `current_failing_test` is set by `/unit` (or `/acceptance` for the outer
   red) and cleared by the commit step at the end of the cycle. The
   production-edit hook keys off this field.

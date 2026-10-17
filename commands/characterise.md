@@ -58,7 +58,8 @@ Run the suite. Green = behaviour preserved; report and hand back to
 `/review`, which invoked this run. Red = a change altered observable
 behaviour. STOP and present the diff to the user: is this an intended
 behaviour change (update the test, record WHY in the commit message) or a
-regression (fix under the net)? Never decide this alone.
+regression (fix under the net)? Never decide this alone — under
+`autonomy: autonomous` this is an escalation trigger.
 
 ## Rules
 

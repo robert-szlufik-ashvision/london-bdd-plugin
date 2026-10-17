@@ -51,7 +51,10 @@ smells, boundary violations, over-implementation beyond the test) and
 - `autonomous`: apply `should`/`consider` proposals directly, keeping all
   tests green. A `block` finding is an escalation trigger (see below) —
   stop the loop, present it to the user, and wait. Do not apply a fix to
-  a `block` finding on your own judgment.
+  a `block` finding on your own judgment. With `blocking: 0`, record the
+  verdict in session.yml: `review: {scope: cycle-<n>, blocking: 0}`,
+  `<n>` being the cycle this commit completes — the guard refuses the
+  cycle commit without it.
 
 Announce `🔵 Refactor`.
 
@@ -68,9 +71,8 @@ Announce `🔵 Refactor`.
   command is `/review`.
 - `autonomous`: queue non-empty and no escalation triggered → loop back
   to step 1 for the next collaborator in the same turn, no waiting for
-  the user to re-invoke `/inner`. Queue empty → set `phase: close`,
-  summarize all cycles run, and tell the user `/review` is next — this
-  gate is unconditional, autonomous or not.
+  the user to re-invoke `/inner`. Queue empty → set `phase: close` and
+  run `/review` in the same turn.
 
 ## Escalation triggers — override autonomy, always
 
@@ -83,6 +85,13 @@ human, exactly as they would interrupt an `assisted` one:
 - A hook rejects an action (Rules A–D) — this means the loop's own model
   of state has drifted from the guard's; don't retry blindly.
 - Git state is unexpected (wrong branch, dirty tree, detached HEAD).
+- The work needs a file outside the declared scope, a mode change, or a
+  term the slice's ubiquitous language doesn't have.
+- A test would have to be deleted or weakened to proceed.
+
+To hand back: set `autonomy: assisted` and `handback: "<one line why>"`
+in session.yml, commit it, report, and end the turn. `/status` shows the
+reason to the developer first.
 
 ## Hard rules
 
@@ -91,5 +100,4 @@ human, exactly as they would interrupt an `assisted` one:
 - Squash-merging onto feature/<slice>-main happens via `/commit-merge`,
   after `/review` sets `phase: done` — manual by default, or agent-run in
   `--auto` mode with fresh per-invocation authorization. Never merge
-  directly here. `autonomy: autonomous` governs `/decompose` and `/inner`
-  only and never reaches this step.
+  directly here. `autonomy: autonomous` never reaches this step.

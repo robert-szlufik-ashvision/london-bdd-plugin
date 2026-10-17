@@ -61,17 +61,22 @@ All commands live under the `/london-bdd:` prefix.
 - **A.** Production edits need a license: a recorded failing test, OR
   phase `close` (wiring), OR SAFE mode with a green net — the declared
   existing suite or a characterisation suite; the hook checks status,
-  not kind.
+  not kind. The implementer agent writes production code only.
+  Autonomous: the recorded failing test must actually exist.
 - **B.** SAFE/FULL_REFACTOR: no edit outside the declared scope —
   "while we're here" must be explicit or logged to debt.
 - **C.** Agent commits only on `feature/*-tmp`. Merges onto
   `feature/*-main` are human-only by default, or agent-run via
   `/commit-merge --auto` with fresh per-run authorization; rebases and
-  pushes are always human.
+  pushes are always human. Autonomous: no commit deletes a test; each
+  cycle commit needs a clean recorded review of that cycle plus a test
+  change.
 - **D.** Phase transitions in `.bdd/session.yml` are forward-only and
   earned: entering `inner`/`close`/`done` requires the actual
   preconditions (outer net exists, collaborator queue drained, etc.) —
-  a step can't be skipped just by writing the field.
+  a step can't be skipped just by writing the field. Only you turn a
+  slice autonomous; under it, mode/scope/net kind are frozen and `done`
+  needs a clean slice-level review.
 
 The guard is silent when no `.bdd/session.yml` slice is active.
 
@@ -79,20 +84,28 @@ The guard is silent when no `.bdd/session.yml` slice is active.
 
 | Work | Who |
 |---|---|
-| Scenario, decomposition, unit tests, review decisions | Main session + you |
+| Scenario, scope, net, autonomy | Main session + you, always |
+| Decomposition, unit tests, review decisions | Main session + you (assisted) or main session alone (autonomous) |
 | Minimum implementation | `implementer` agent (Haiku, can't touch tests) |
 | Design critique | `reviewer` agent (Sonnet, read-only) |
 
 ## Autonomy — opt-in
 
-`/decompose` and `/inner` default to `autonomy: assisted`: every role
-name and every cycle pauses for you. Set `autonomy: autonomous` when
-starting a slice (`/scenario` or `/refactor-scope` asks) to let the agent
-drive the whole collaborator queue unattended instead. Three things
-always stop it and hand back to you, in either mode: a `block`-severity
-finding from the reviewer, an implementer that can't reach green, or a
-hook rejection. The outer red, `/review`, and `/commit-merge` are never
-autonomous — see `skills/london-bdd/references/session-schema.md`.
+`/decompose`, `/inner` and `/review` default to `autonomy: assisted`:
+every role name, cycle and review proposal pauses for you. Set
+`autonomy: autonomous` when starting a slice (`/scenario` or
+`/refactor-scope` asks) to let the agent run them unattended instead,
+stopping at `phase: done` for you to audit and land. You always own the
+outer loop's opening (behaviour, language, scope, mode, net) and
+`/commit-merge`.
+
+Autonomous doesn't relax the discipline — the hooks take over the checks
+you'd otherwise do by eye (Rules A–D above). When the run hits something
+only you can decide — a `block` review finding, an implementer that
+can't reach green, a hook rejection, work outside the declared scope —
+it hands back: `autonomy: assisted` plus a `handback:` reason, which
+`/status` shows you first. See
+`skills/london-bdd/references/session-schema.md`.
 
 ## Branching
 

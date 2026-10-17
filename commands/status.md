@@ -14,6 +14,10 @@ answer here and the hooks' behaviour never disagree.
 
 1. Run: `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/next.py`
 2. Print its output as-is.
+   - `next: developer — …` means an autonomous run was handed back: stop
+     and surface the reason; do not run the named command.
+   - `(autonomy: autonomous — continue unattended)` means run the named
+     command now, without asking.
 3. If it says no active slice, offer `/scenario` (new behaviour) or
    `/refactor-scope` (existing code).
 4. Do not second-guess the result by reading git log, scanning the repo,

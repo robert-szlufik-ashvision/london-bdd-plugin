@@ -52,3 +52,8 @@ Output format — a numbered list, each item:
 code with no covering test. Be direct and specific; vague praise and vague
 concern are both useless. If the cycle is genuinely clean, say so in one
 line and stop.
+
+Always end with exactly one line, `blocking: <n>` — the number of
+`[severity: block]` findings. Under `autonomy: autonomous` the main
+session records it in session.yml, and the guard refuses the commit
+until it is 0.

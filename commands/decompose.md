@@ -21,7 +21,9 @@ Read the `london-bdd` skill and `references/collaborator-discovery.md`.
 2. **`autonomy: assisted` (default) — confirm every role name with the
    user before recording it; names are design decisions.**
    **`autonomy: autonomous` — name roles yourself against the ubiquitous
-   language and the sanity checks below; no per-role confirmation.** The
+   language and the sanity checks below; no per-role confirmation.** A
+   role that needs a term the agreed language doesn't have is an
+   escalation trigger (`/inner`) — hand back rather than coin it. The
    full map still gets shown to the user in step 6, and any role name
    that drifts from the domain glossary is exactly the kind of thing the
    `/inner` reviewer step will flag.
