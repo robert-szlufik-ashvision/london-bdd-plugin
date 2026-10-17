@@ -263,6 +263,101 @@ def test_rebase_always_blocked_even_with_marker(repo):
     assert "rebase" in err.lower()
 
 
+# ---- Rule C (autonomy: auto): a cycle commit carries its own evidence --
+
+def advance_cycle(repo, review="\n  scope: cycle-1\n  blocking: 0", **extra):
+    """Rewrite session.yml the way /inner's commit step does: cycle bumped,
+    plus the reviewer's recorded verdict for that cycle."""
+    fields = dict(slice="x", mode="GREENFIELD", phase="inner",
+                  branch="feature/x-tmp", base_branch="feature/x-main",
+                  autonomy="auto", cycle=1, **extra)
+    if review is not None:
+        fields["review"] = review
+    write_session(repo, **fields)
+
+
+def open_auto_slice(repo, mode="GREENFIELD"):
+    open_slice(repo, "x", mode=mode, autonomy="auto", cycle=0)
+
+
+def test_auto_allows_cycle_commit_with_clean_review_and_a_test(repo):
+    open_auto_slice(repo)
+    write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
+    advance_cycle(repo)
+    code, _ = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 0
+
+
+def test_auto_blocks_cycle_commit_without_a_review_for_this_cycle(repo):
+    open_auto_slice(repo)
+    write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
+    advance_cycle(repo, review=None)
+    code, err = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 2
+    assert "review" in err
+
+
+def test_auto_blocks_cycle_commit_carrying_a_stale_review(repo):
+    open_auto_slice(repo)
+    write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
+    advance_cycle(repo, review="\n  scope: cycle-0\n  blocking: 0")
+    code, err = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 2
+    assert "cycle-1" in err
+
+
+def test_auto_blocks_cycle_commit_with_open_blocking_findings(repo):
+    open_auto_slice(repo)
+    write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
+    advance_cycle(repo, review="\n  scope: cycle-1\n  blocking: 2")
+    code, err = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 2
+    assert "blocking" in err
+
+
+def test_auto_blocks_greenfield_cycle_commit_with_no_test_change(repo):
+    open_auto_slice(repo)
+    (repo / "src").mkdir()
+    (repo / "src" / "x.py").write_text("x = 1\n")
+    advance_cycle(repo)
+    code, err = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 2
+    assert "test" in err
+
+
+def test_auto_allows_safe_cycle_commit_with_no_test_change(repo):
+    """SAFE moves are green-to-green under the net — no new test due."""
+    open_auto_slice(repo, mode="SAFE")
+    (repo / "src").mkdir()
+    (repo / "src" / "x.py").write_text("x = 1\n")
+    write_session(repo, slice="x", mode="SAFE", phase="inner",
+                  branch="feature/x-tmp", base_branch="feature/x-main",
+                  autonomy="auto", cycle=1,
+                  review="\n  scope: cycle-1\n  blocking: 0")
+    code, _ = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 0
+
+
+def test_auto_blocks_commit_that_deletes_a_test_file(repo):
+    write_test(repo, "tests/unit/old_test.py", "def test_should_y(): ...\n")
+    run_git(repo, "add", ".")
+    run_git(repo, "commit", "-q", "-m", "old test")
+    open_auto_slice(repo)
+    (repo / "tests" / "unit" / "old_test.py").unlink()
+    code, err = guard(repo, "bash", command="git commit -am 'tidy'")
+    assert code == 2
+    assert "tests/unit/old_test.py" in err
+
+
+def test_supervised_cycle_commit_needs_no_recorded_review(repo):
+    open_slice(repo, "x", cycle=0)
+    write_session(repo, slice="x", mode="GREENFIELD", phase="inner",
+                  branch="feature/x-tmp", base_branch="feature/x-main",
+                  cycle=1)
+    code, _ = guard(repo, "bash", command="git commit -am 'cycle 1'")
+    assert code == 0
+
+
 # ---- Rule C: merges — the auto-merge marker flow ----------------------
 
 def test_blocks_merge_on_slice_main_with_no_marker(repo):
