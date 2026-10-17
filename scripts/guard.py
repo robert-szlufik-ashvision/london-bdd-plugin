@@ -12,7 +12,7 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      net is the human's declaration at scope time. The implementer
      subagent (identified by the hook payload's agent_type) may write
      production code only — never tests, .bdd/ or docs. Under
-     `autonomy: auto` the recorded failing test must exist (file on disk,
+     `autonomy: autonomous` the recorded failing test must exist (file on disk,
      name in the file) — no human is watching the red.
   B. In SAFE / FULL_REFACTOR mode, no edit outside the declared scope.
   C. `git commit` only on the slice's feature/<slice>-tmp branch. Merges
@@ -20,7 +20,7 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      `/commit-merge --auto` has dropped a fresh, untracked
      `.bdd/.merge-authorized` marker naming this exact tmp/base branch
      pair (see find_merge_marker). Rebases are never allowed for the agent.
-     Under `autonomy: auto` a commit may not delete test files, and a
+     Under `autonomy: autonomous` a commit may not delete test files, and a
      cycle commit must carry a clean recorded review for that cycle plus
      a test change (see auto_commit_violation).
   D. Phase transitions in session.yml are forward-only and earned (see
@@ -31,8 +31,8 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      here — that's expected: this hook governs the agent's own tool
      calls, not the developer's own editor. The developer's own
      declarations are guarded the same way: only they promote a slice to
-     `autonomy: auto`, and under auto the mode, scope and net kind are
-     fixed and `done` needs a clean slice review (see
+     `autonomy: autonomous`, and under autonomous the mode, scope and
+     net kind are fixed and `done` needs a clean slice review (see
      human_field_violation).
 
 Note on the marker file: `git checkout <base_branch>` removes
@@ -96,7 +96,7 @@ def parse_session_text(text):
          "current_failing_test": None, "scope_in": [], "scope_out": [],
          "phase": None, "char_status": None, "net_status": None,
          "net_kind": None, "acceptance_status": None,
-         "collaborators": [], "cycle": 0, "autonomy": "supervised",
+         "collaborators": [], "cycle": 0, "autonomy": "assisted",
          "failing_test_file": None, "failing_test_name": None,
          "review_scope": None, "review_blocking": None, "handback": None}
     m = re.search(r"^slice:\s*(\S+)", text, re.M)
@@ -217,20 +217,21 @@ HUMAN_FIELDS = [("mode", "mode"), ("scope_in", "scope"),
 
 def human_field_violation(s, new):
     """The human's declarations at slice start stay the human's. Nobody's
-    agent promotes a slice to auto on its own; under auto, the mode, the
-    scope and the net kind are fixed — widening any of them is exactly
-    the 'while we're here' a supervising human used to catch. Handing a
-    slice back to supervised is always allowed: it's how auto escalates."""
-    if new["autonomy"] == "auto" and s["autonomy"] != "auto":
-        return ("autonomy: only the developer switches a slice to auto — "
+    agent promotes a slice to autonomous on its own; under autonomous,
+    the mode, the scope and the net kind are fixed — widening any of them
+    is exactly the 'while we're here' an assisting human used to catch.
+    Handing a slice back to assisted is always allowed: it's how an
+    autonomous run escalates."""
+    if new["autonomy"] == "autonomous" and s["autonomy"] != "autonomous":
+        return ("autonomy: only the developer switches a slice to autonomous — "
                 "set it when the slice is opened, or edit the file by hand")
-    if s["autonomy"] != "auto":
+    if s["autonomy"] != "autonomous":
         return None
     for key, label in HUMAN_FIELDS:
         if new[key] != s[key]:
             return (f"{label} is the developer's declaration and is fixed "
-                    "under autonomy: auto — hand the slice back "
-                    "(autonomy: supervised) to change it, or log to /debt")
+                    "under autonomy: autonomous — hand the slice back "
+                    "(autonomy: assisted) to change it, or log to /debt")
     return None
 
 
@@ -286,9 +287,9 @@ def validate_phase_transition(s, new_phase, new=None):
         return ("Rule D: cannot enter phase 'done' except from 'close' — "
                 "run /review to close the outer loop first.")
 
-    if new_phase == "done" and s["autonomy"] == "auto":
+    if new_phase == "done" and s["autonomy"] == "autonomous":
         if not new or new["review_scope"] != "slice" or new["review_blocking"] != 0:
-            return ("Rule D (autonomy: auto): cannot enter phase 'done' "
+            return ("Rule D (autonomy: autonomous): cannot enter phase 'done' "
                     "without a clean slice review — record `review: {scope: "
                     "slice, blocking: 0}` from /review's reviewer pass.")
 
@@ -393,7 +394,7 @@ def is_test_path(relpath):
 
 
 def auto_commit_violation(s, root):
-    """autonomy: auto — Rule C's commit gate replaces the human who used to
+    """autonomy: autonomous — Rule C's commit gate replaces the human who used to
     watch each cycle. Any commit: no test file deleted (shrinking the net
     is a human decision). A cycle commit (cycle advanced past HEAD's):
     the reviewer's verdict for exactly this cycle is recorded with zero
@@ -470,7 +471,7 @@ def is_always_allowed(relpath):
 
 
 def unreal_red(s, root):
-    """autonomy: auto — with no human watching the red, the recorded
+    """autonomy: autonomous — with no human watching the red, the recorded
     failing test must at least exist: its file on disk, its name in that
     file. Qualified names (Suite.Name, Class::method) are matched on the
     last segment, which is the part every framework spells out literally.
@@ -541,10 +542,10 @@ def main():
                     block("Rule C: agent commits are allowed only on a "
                           "feature/<slice>-tmp branch, or the merge-landing "
                           "commit authorized via /commit-merge --auto.")
-                if s and s["autonomy"] == "auto":
+                if s and s["autonomy"] == "autonomous":
                     err = auto_commit_violation(s, root)
                     if err:
-                        block(f"Rule C (autonomy: auto): commit blocked — "
+                        block(f"Rule C (autonomy: autonomous): commit blocked — "
                               f"{err}.")
             if re.search(r"\bgit\s+rebase\b", cmd):
                 block("Rule C: rebases are the developer's manual action, "
@@ -617,11 +618,11 @@ def main():
         or s["phase"] == "close"
         or (s["mode"] == "SAFE" and net_status(s) == "green")
     )
-    if (s["autonomy"] == "auto" and s["current_failing_test"]
+    if (s["autonomy"] == "autonomous" and s["current_failing_test"]
             and s["phase"] != "close"):
         err = unreal_red(s, root)
         if err:
-            block(f"Rule A (autonomy: auto): production edit to '{r}' is "
+            block(f"Rule A (autonomy: autonomous): production edit to '{r}' is "
                   f"blocked — {err}. Write the test, run it red, then record "
                   "it in session.yml.")
     if not licensed:

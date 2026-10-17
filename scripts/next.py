@@ -17,10 +17,10 @@ import guard  # noqa: E402
 def compute(s):
     cmd, reason = lookup(s)
     if s and s["handback"]:
-        return "developer", (f"[{s['slice'] or '?'}] auto handed the slice "
+        return "developer", (f"[{s['slice'] or '?'}] autonomous run handed the slice "
                              f"back: {s['handback']} — then {cmd}")
-    if s and s["autonomy"] == "auto" and s["phase"] != "done":
-        reason += " (autonomy: auto — continue unattended)"
+    if s and s["autonomy"] == "autonomous" and s["phase"] != "done":
+        reason += " (autonomy: autonomous — continue unattended)"
     return cmd, reason
 
 

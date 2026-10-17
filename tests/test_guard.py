@@ -165,7 +165,7 @@ def test_allows_implementer_agent_production_edit_under_red(repo):
     assert code == 0
 
 
-# ---- Rule A (autonomy: auto): the recorded red must point at a real test
+# ---- Rule A (autonomy: autonomous): the recorded red must point at a real test
 
 def write_test(repo, rel, body):
     f = repo / rel
@@ -173,16 +173,16 @@ def write_test(repo, rel, body):
     f.write_text(body)
 
 
-def test_auto_blocks_production_edit_when_failing_test_file_is_missing(repo):
-    open_slice(repo, "x", autonomy="auto", current_failing_test=FAILING)
+def test_autonomous_blocks_production_edit_when_failing_test_file_is_missing(repo):
+    open_slice(repo, "x", autonomy="autonomous", current_failing_test=FAILING)
     code, err = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
     assert code == 2
     assert "tests/unit/x_test.py" in err
 
 
-def test_auto_blocks_production_edit_when_test_name_absent_from_file(repo):
+def test_autonomous_blocks_production_edit_when_test_name_absent_from_file(repo):
     write_test(repo, "tests/unit/x_test.py", "def test_should_other(): ...\n")
-    open_slice(repo, "x", autonomy="auto",
+    open_slice(repo, "x", autonomy="autonomous",
                current_failing_test="\n  file: tests/unit/x_test.py"
                                     "\n  name: test_should_place_order")
     code, err = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
@@ -190,22 +190,22 @@ def test_auto_blocks_production_edit_when_test_name_absent_from_file(repo):
     assert "test_should_place_order" in err
 
 
-def test_auto_allows_production_edit_when_failing_test_exists(repo):
+def test_autonomous_allows_production_edit_when_failing_test_exists(repo):
     write_test(repo, "tests/unit/x_test.py",
                "def test_should_place_order(): ...\n")
-    open_slice(repo, "x", autonomy="auto",
+    open_slice(repo, "x", autonomy="autonomous",
                current_failing_test="\n  file: tests/unit/x_test.py"
                                     "\n  name: test_should_place_order")
     code, _ = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
     assert code == 0
 
 
-def test_auto_matches_qualified_test_name_by_its_last_segment(repo):
+def test_autonomous_matches_qualified_test_name_by_its_last_segment(repo):
     """gtest-style Suite.Name / Class::method records — the file declares
     the parts separately, so only the last segment is looked for."""
     write_test(repo, "tests/unit/repo_test.cpp",
                "TEST(OrderRepository, ShouldSaveAndReturnId) {}\n")
-    open_slice(repo, "x", autonomy="auto",
+    open_slice(repo, "x", autonomy="autonomous",
                current_failing_test="\n  file: tests/unit/repo_test.cpp"
                                     "\n  name: OrderRepository.ShouldSaveAndReturnId")
     code, _ = guard(repo, "edit", file_path=str(repo / "src" / "repo.cpp"))
@@ -263,24 +263,24 @@ def test_rebase_always_blocked_even_with_marker(repo):
     assert "rebase" in err.lower()
 
 
-# ---- Rule C (autonomy: auto): a cycle commit carries its own evidence --
+# ---- Rule C (autonomy: autonomous): a cycle commit carries its own evidence --
 
 def advance_cycle(repo, review="\n  scope: cycle-1\n  blocking: 0", **extra):
     """Rewrite session.yml the way /inner's commit step does: cycle bumped,
     plus the reviewer's recorded verdict for that cycle."""
     fields = dict(slice="x", mode="GREENFIELD", phase="inner",
                   branch="feature/x-tmp", base_branch="feature/x-main",
-                  autonomy="auto", cycle=1, **extra)
+                  autonomy="autonomous", cycle=1, **extra)
     if review is not None:
         fields["review"] = review
     write_session(repo, **fields)
 
 
 def open_auto_slice(repo, mode="GREENFIELD"):
-    open_slice(repo, "x", mode=mode, autonomy="auto", cycle=0)
+    open_slice(repo, "x", mode=mode, autonomy="autonomous", cycle=0)
 
 
-def test_auto_allows_cycle_commit_with_clean_review_and_a_test(repo):
+def test_autonomous_allows_cycle_commit_with_clean_review_and_a_test(repo):
     open_auto_slice(repo)
     write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
     advance_cycle(repo)
@@ -288,7 +288,7 @@ def test_auto_allows_cycle_commit_with_clean_review_and_a_test(repo):
     assert code == 0
 
 
-def test_auto_blocks_cycle_commit_without_a_review_for_this_cycle(repo):
+def test_autonomous_blocks_cycle_commit_without_a_review_for_this_cycle(repo):
     open_auto_slice(repo)
     write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
     advance_cycle(repo, review=None)
@@ -297,7 +297,7 @@ def test_auto_blocks_cycle_commit_without_a_review_for_this_cycle(repo):
     assert "review" in err
 
 
-def test_auto_blocks_cycle_commit_carrying_a_stale_review(repo):
+def test_autonomous_blocks_cycle_commit_carrying_a_stale_review(repo):
     open_auto_slice(repo)
     write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
     advance_cycle(repo, review="\n  scope: cycle-0\n  blocking: 0")
@@ -306,7 +306,7 @@ def test_auto_blocks_cycle_commit_carrying_a_stale_review(repo):
     assert "cycle-1" in err
 
 
-def test_auto_blocks_cycle_commit_with_open_blocking_findings(repo):
+def test_autonomous_blocks_cycle_commit_with_open_blocking_findings(repo):
     open_auto_slice(repo)
     write_test(repo, "tests/unit/x_test.py", "def test_should_x(): ...\n")
     advance_cycle(repo, review="\n  scope: cycle-1\n  blocking: 2")
@@ -315,7 +315,7 @@ def test_auto_blocks_cycle_commit_with_open_blocking_findings(repo):
     assert "blocking" in err
 
 
-def test_auto_blocks_greenfield_cycle_commit_with_no_test_change(repo):
+def test_autonomous_blocks_greenfield_cycle_commit_with_no_test_change(repo):
     open_auto_slice(repo)
     (repo / "src").mkdir()
     (repo / "src" / "x.py").write_text("x = 1\n")
@@ -325,20 +325,20 @@ def test_auto_blocks_greenfield_cycle_commit_with_no_test_change(repo):
     assert "test" in err
 
 
-def test_auto_allows_safe_cycle_commit_with_no_test_change(repo):
+def test_autonomous_allows_safe_cycle_commit_with_no_test_change(repo):
     """SAFE moves are green-to-green under the net — no new test due."""
     open_auto_slice(repo, mode="SAFE")
     (repo / "src").mkdir()
     (repo / "src" / "x.py").write_text("x = 1\n")
     write_session(repo, slice="x", mode="SAFE", phase="inner",
                   branch="feature/x-tmp", base_branch="feature/x-main",
-                  autonomy="auto", cycle=1,
+                  autonomy="autonomous", cycle=1,
                   review="\n  scope: cycle-1\n  blocking: 0")
     code, _ = guard(repo, "bash", command="git commit -am 'cycle 1'")
     assert code == 0
 
 
-def test_auto_blocks_commit_that_deletes_a_test_file(repo):
+def test_autonomous_blocks_commit_that_deletes_a_test_file(repo):
     write_test(repo, "tests/unit/old_test.py", "def test_should_y(): ...\n")
     run_git(repo, "add", ".")
     run_git(repo, "commit", "-q", "-m", "old test")
@@ -349,7 +349,7 @@ def test_auto_blocks_commit_that_deletes_a_test_file(repo):
     assert "tests/unit/old_test.py" in err
 
 
-def test_supervised_cycle_commit_needs_no_recorded_review(repo):
+def test_assisted_cycle_commit_needs_no_recorded_review(repo):
     open_slice(repo, "x", cycle=0)
     write_session(repo, slice="x", mode="GREENFIELD", phase="inner",
                   branch="feature/x-tmp", base_branch="feature/x-main",
@@ -550,7 +550,7 @@ def test_allows_done_from_close(repo):
     assert code == 0
 
 
-# ---- Rule D (autonomy: auto): the human's declarations are fixed -------
+# ---- Rule D (autonomy: autonomous): the human's declarations are fixed -------
 
 def rewrite_session(repo, old, new):
     bdd = repo / ".bdd" / "session.yml"
@@ -566,23 +566,23 @@ SCOPED = {"net": "\n  kind: existing\n  status: green",
           "scope": "\n  in:\n    - src/pricing/*\n  out:\n    - src/tax/*"}
 
 
-def test_auto_blocks_agent_widening_the_declared_scope(repo):
-    open_slice(repo, "x", mode="SAFE", autonomy="auto", **SCOPED)
+def test_autonomous_blocks_agent_widening_the_declared_scope(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="autonomous", **SCOPED)
     code, err = rewrite_session(repo, "    - src/pricing/*",
                                 "    - src/pricing/*\n    - src/tax/*")
     assert code == 2
     assert "scope" in err
 
 
-def test_auto_blocks_agent_changing_the_mode(repo):
-    open_slice(repo, "x", mode="SAFE", autonomy="auto", **SCOPED)
+def test_autonomous_blocks_agent_changing_the_mode(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="autonomous", **SCOPED)
     code, err = rewrite_session(repo, "mode: SAFE", "mode: FULL_REFACTOR")
     assert code == 2
     assert "mode" in err
 
 
-def test_auto_blocks_agent_redeclaring_the_net_kind(repo):
-    open_slice(repo, "x", mode="SAFE", autonomy="auto",
+def test_autonomous_blocks_agent_redeclaring_the_net_kind(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="autonomous",
                **{"net": "\n  kind: characterisation\n  status: green"})
     code, err = rewrite_session(repo, "kind: characterisation",
                                 "kind: existing")
@@ -590,37 +590,37 @@ def test_auto_blocks_agent_redeclaring_the_net_kind(repo):
     assert "net" in err
 
 
-def test_blocks_agent_switching_a_supervised_slice_to_auto(repo):
-    open_slice(repo, "x", autonomy="supervised")
-    code, err = rewrite_session(repo, "autonomy: supervised",
-                                "autonomy: auto")
+def test_blocks_agent_switching_an_assisted_slice_to_autonomous(repo):
+    open_slice(repo, "x", autonomy="assisted")
+    code, err = rewrite_session(repo, "autonomy: assisted",
+                                "autonomy: autonomous")
     assert code == 2
     assert "autonomy" in err
 
 
-def test_allows_agent_handing_an_auto_slice_back_to_supervised(repo):
-    open_slice(repo, "x", autonomy="auto")
-    code, _ = rewrite_session(repo, "autonomy: auto",
-                              "autonomy: supervised")
+def test_allows_agent_handing_an_autonomous_slice_back_to_assisted(repo):
+    open_slice(repo, "x", autonomy="autonomous")
+    code, _ = rewrite_session(repo, "autonomy: autonomous",
+                              "autonomy: assisted")
     assert code == 0
 
 
-def test_auto_allows_ordinary_bookkeeping_edits(repo):
-    open_slice(repo, "x", mode="SAFE", autonomy="auto", cycle=0, **SCOPED)
+def test_autonomous_allows_ordinary_bookkeeping_edits(repo):
+    open_slice(repo, "x", mode="SAFE", autonomy="autonomous", cycle=0, **SCOPED)
     code, _ = rewrite_session(repo, "cycle: 0", "cycle: 1")
     assert code == 0
 
 
-def test_auto_blocks_done_without_a_clean_slice_review(repo):
-    open_slice(repo, "x", phase="close", autonomy="auto",
+def test_autonomous_blocks_done_without_a_clean_slice_review(repo):
+    open_slice(repo, "x", phase="close", autonomy="autonomous",
                review="\n  scope: cycle-3\n  blocking: 0")
     code, err = edit_session(repo, "done")
     assert code == 2
     assert "slice" in err
 
 
-def test_auto_allows_done_with_a_clean_slice_review(repo):
-    open_slice(repo, "x", phase="close", autonomy="auto")
+def test_autonomous_allows_done_with_a_clean_slice_review(repo):
+    open_slice(repo, "x", phase="close", autonomy="autonomous")
     code, _ = rewrite_session(
         repo, "phase: close",
         "phase: done\nreview:\n  scope: slice\n  blocking: 0")

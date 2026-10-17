@@ -80,15 +80,15 @@ def test_phase_done_suggests_commit_merge(tmp_path):
     assert out.startswith("next: /commit-merge")
 
 
-def test_auto_slice_says_to_continue_unattended(tmp_path):
+def test_autonomous_slice_says_to_continue_unattended(tmp_path):
     init_repo(tmp_path)
-    open_slice(tmp_path, "x", phase="decompose", autonomy="auto")
+    open_slice(tmp_path, "x", phase="decompose", autonomy="autonomous")
     out = run_next(tmp_path)
     assert out.startswith("next: /decompose")
     assert "unattended" in out
 
 
-def test_supervised_slice_does_not_claim_to_run_unattended(tmp_path):
+def test_assisted_slice_does_not_claim_to_run_unattended(tmp_path):
     init_repo(tmp_path)
     open_slice(tmp_path, "x", phase="decompose")
     assert "unattended" not in run_next(tmp_path)
@@ -96,7 +96,7 @@ def test_supervised_slice_does_not_claim_to_run_unattended(tmp_path):
 
 def test_handed_back_slice_names_the_developer_and_the_reason(tmp_path):
     init_repo(tmp_path)
-    open_slice(tmp_path, "x", phase="close", autonomy="supervised",
+    open_slice(tmp_path, "x", phase="close", autonomy="assisted",
                handback='"net red on verification run"')
     out = run_next(tmp_path)
     assert out.startswith("next: developer")
