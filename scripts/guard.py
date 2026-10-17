@@ -9,7 +9,9 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      scope is already covered by — or kind: characterisation); a legacy
      `characterisation:` block still counts as a characterisation-kind
      net. The guard checks status, not kind: which suites constitute the
-     net is the human's declaration at scope time.
+     net is the human's declaration at scope time. The implementer
+     subagent (identified by the hook payload's agent_type) may write
+     production code only — never tests, .bdd/ or docs.
   B. In SAFE / FULL_REFACTOR mode, no edit outside the declared scope.
   C. `git commit` only on the slice's feature/<slice>-tmp branch. Merges
      onto feature/<slice>-main are the developer's manual action, unless
@@ -320,6 +322,13 @@ def is_always_allowed(relpath):
     return name in ALLOWED_FILENAMES or name.startswith("README")
 
 
+def is_implementer(payload):
+    """True when the tool call comes from the implementer subagent —
+    Claude Code puts the subagent's type in the hook payload, namespaced
+    by plugin (london-bdd:implementer)."""
+    return (payload.get("agent_type") or "").split(":")[-1] == "implementer"
+
+
 def in_scope(relpath, patterns):
     p = relpath.replace(os.sep, "/")
     for pat in patterns:
@@ -390,6 +399,14 @@ def main():
     if not fp:
         sys.exit(0)
     r = rel(fp, root)
+
+    # Rule A — the implementer agent writes production code only. The
+    # hook payload names the subagent making the call, so "never edits
+    # tests or session.yml" is enforced here, not trusted to its prompt.
+    if is_implementer(payload) and is_always_allowed(r):
+        block(f"Rule A: the implementer agent may not edit '{r}' — it "
+              "writes production code only, never tests, .bdd/ or docs. "
+              "If the test looks wrong, stop and report it.")
 
     # Rule D — phase-transition gate. Checked even though .bdd/ is
     # otherwise always-allowed below: session.yml itself must stay
