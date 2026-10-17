@@ -11,7 +11,9 @@ Enforces the four hard rules when a .bdd/session.yml slice is active:
      net. The guard checks status, not kind: which suites constitute the
      net is the human's declaration at scope time. The implementer
      subagent (identified by the hook payload's agent_type) may write
-     production code only — never tests, .bdd/ or docs.
+     production code only — never tests, .bdd/ or docs. Under
+     `autonomy: auto` the recorded failing test must exist (file on disk,
+     name in the file) — no human is watching the red.
   B. In SAFE / FULL_REFACTOR mode, no edit outside the declared scope.
   C. `git commit` only on the slice's feature/<slice>-tmp branch. Merges
      onto feature/<slice>-main are the developer's manual action, unless
@@ -79,7 +81,8 @@ def parse_session(path):
          "current_failing_test": None, "scope_in": [], "scope_out": [],
          "phase": None, "char_status": None, "net_status": None,
          "net_kind": None, "acceptance_status": None,
-         "collaborators": [], "cycle": 0}
+         "collaborators": [], "cycle": 0, "autonomy": "supervised",
+         "failing_test_file": None, "failing_test_name": None}
     try:
         text = open(path, encoding="utf-8").read()
     except OSError:
@@ -96,9 +99,15 @@ def parse_session(path):
     if m: s["base_branch"] = m.group(1)
     m = re.search(r"^cycle:\s*(\d+)", text, re.M)
     if m: s["cycle"] = int(m.group(1))
+    m = re.search(r"^autonomy:\s*(\S+)", text, re.M)
+    if m: s["autonomy"] = m.group(1)
     m = re.search(r"^current_failing_test:\s*\n((?:[ \t]+.*\n?)*)", text, re.M)
     if m and re.search(r"\bfile:\s*\S", m.group(1)):
         s["current_failing_test"] = True
+        s["failing_test_file"] = re.search(
+            r"\bfile:\s*(\S+)", m.group(1)).group(1).strip("'\"")
+        nm = re.search(r"\bname:\s*(\S+)", m.group(1))
+        if nm: s["failing_test_name"] = nm.group(1).strip("'\"")
     m = re.search(r"^characterisation:\s*\n((?:[ \t]+.*\n?)*)", text, re.M)
     if m:
         st = re.search(r"\bstatus:\s*(\S+)", m.group(1))
@@ -322,6 +331,28 @@ def is_always_allowed(relpath):
     return name in ALLOWED_FILENAMES or name.startswith("README")
 
 
+def unreal_red(s, root):
+    """autonomy: auto — with no human watching the red, the recorded
+    failing test must at least exist: its file on disk, its name in that
+    file. Qualified names (Suite.Name, Class::method) are matched on the
+    last segment, which is the part every framework spells out literally.
+    Returns an error message, or None if the record points at a real test."""
+    f = s["failing_test_file"]
+    path = os.path.join(root, f)
+    if not os.path.isfile(path):
+        return (f"the recorded failing test file '{f}' does not exist")
+    name = s["failing_test_name"]
+    if name:
+        last = re.split(r"\.|::|#|/", name)[-1]
+        try:
+            text = open(path, encoding="utf-8", errors="replace").read()
+        except OSError:
+            text = ""
+        if last not in text:
+            return (f"the recorded failing test '{name}' is not in '{f}'")
+    return None
+
+
 def is_implementer(payload):
     """True when the tool call comes from the implementer subagent —
     Claude Code puts the subagent's type in the hook payload, namespaced
@@ -434,6 +465,13 @@ def main():
         or s["phase"] == "close"
         or (s["mode"] == "SAFE" and net_status(s) == "green")
     )
+    if (s["autonomy"] == "auto" and s["current_failing_test"]
+            and s["phase"] != "close"):
+        err = unreal_red(s, root)
+        if err:
+            block(f"Rule A (autonomy: auto): production edit to '{r}' is "
+                  f"blocked — {err}. Write the test, run it red, then record "
+                  "it in session.yml.")
     if not licensed:
         block(f"Rule A: production edit to '{r}' is blocked — no license. "
               "Licenses: a failing test in session.yml (/unit, /acceptance), "

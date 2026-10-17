@@ -165,6 +165,53 @@ def test_allows_implementer_agent_production_edit_under_red(repo):
     assert code == 0
 
 
+# ---- Rule A (autonomy: auto): the recorded red must point at a real test
+
+def write_test(repo, rel, body):
+    f = repo / rel
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(body)
+
+
+def test_auto_blocks_production_edit_when_failing_test_file_is_missing(repo):
+    open_slice(repo, "x", autonomy="auto", current_failing_test=FAILING)
+    code, err = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
+    assert code == 2
+    assert "tests/unit/x_test.py" in err
+
+
+def test_auto_blocks_production_edit_when_test_name_absent_from_file(repo):
+    write_test(repo, "tests/unit/x_test.py", "def test_should_other(): ...\n")
+    open_slice(repo, "x", autonomy="auto",
+               current_failing_test="\n  file: tests/unit/x_test.py"
+                                    "\n  name: test_should_place_order")
+    code, err = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
+    assert code == 2
+    assert "test_should_place_order" in err
+
+
+def test_auto_allows_production_edit_when_failing_test_exists(repo):
+    write_test(repo, "tests/unit/x_test.py",
+               "def test_should_place_order(): ...\n")
+    open_slice(repo, "x", autonomy="auto",
+               current_failing_test="\n  file: tests/unit/x_test.py"
+                                    "\n  name: test_should_place_order")
+    code, _ = guard(repo, "edit", file_path=str(repo / "src" / "order.py"))
+    assert code == 0
+
+
+def test_auto_matches_qualified_test_name_by_its_last_segment(repo):
+    """gtest-style Suite.Name / Class::method records — the file declares
+    the parts separately, so only the last segment is looked for."""
+    write_test(repo, "tests/unit/repo_test.cpp",
+               "TEST(OrderRepository, ShouldSaveAndReturnId) {}\n")
+    open_slice(repo, "x", autonomy="auto",
+               current_failing_test="\n  file: tests/unit/repo_test.cpp"
+                                    "\n  name: OrderRepository.ShouldSaveAndReturnId")
+    code, _ = guard(repo, "edit", file_path=str(repo / "src" / "repo.cpp"))
+    assert code == 0
+
+
 # ---- Rule B: scope gate (SAFE/FULL_REFACTOR) --------------------------
 
 def test_blocks_edit_outside_declared_scope(repo):
